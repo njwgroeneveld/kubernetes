@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Kopieer de benodigde bestanden
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r ../requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Start het script
