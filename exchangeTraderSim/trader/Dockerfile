@@ -1,6 +1,9 @@
 # Gebruik een lichte Python versie
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+
+
 # Zet de werkmap in de container
 WORKDIR /app
 
@@ -11,5 +14,6 @@ COPY . .
 
 # Start het script  
 CMD ["python", "trader.py"]
+
 
 
