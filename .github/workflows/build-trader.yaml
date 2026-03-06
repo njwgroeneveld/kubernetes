@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'trader/**'   # ← alleen triggeren als app1 verandert
+      - 'exchangeTraderSim/trader/**'   # ✅ volledig pad
 
 jobs:
   build:
@@ -31,7 +31,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./trader        # ← map van de app
+          context: ./exchangeTraderSim/trader        # ← map van de app
           platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository }}/app1:latest
