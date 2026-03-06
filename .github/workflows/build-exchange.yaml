@@ -1,11 +1,11 @@
-name: Build trader
+name: Build exchange
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'exchangeTraderSim/trader/**'   # ✅ volledig pad
+      - 'exchangeTraderSim/exchange/**'
 
 jobs:
   build:
@@ -31,7 +31,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./exchangeTraderSim/trader        # ← map van de app
+          context: ./exchangeTraderSim/exchange
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}/app1:latest
+          tags: ghcr.io/${{ github.repository }}/exchange:latest

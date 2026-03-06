@@ -1,6 +1,8 @@
 # Gebruik een lichte Python versie
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+
 # Zet de werkmap in de container
 WORKDIR /app
 
@@ -9,5 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
-# Start het script
+# Start het script 
 CMD ["python", "exchange.py"]
+
+
