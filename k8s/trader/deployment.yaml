@@ -16,3 +16,8 @@ spec:
         - name: trader
           image: ghcr.io/njwgroeneveld/kubernetes/app1:latest
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: "50m"
+            limits:
+              cpu: "50m"
