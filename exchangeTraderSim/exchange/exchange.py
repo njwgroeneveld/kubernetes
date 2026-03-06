@@ -3,7 +3,7 @@ import time
 import random
 import os
 
-TRADER_URL = os.getenv("TRADER_URL", "http://127.0.0.1:8080/trade")
+TRADER_URL = os.getenv("TRADER_URL", "http://trader:8080/trade")
 
 print("Exchange gestart. Verbinding maken met Trader...")
 
