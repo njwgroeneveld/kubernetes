@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trader
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trader
+  template:
+    metadata:
+      labels:
+        app: trader
+    spec:
+      containers:
+        - name: trader
+          image: ghcr.io/njwgroeneveld/kubernetes/app1:latest
+          imagePullPolicy: Always
