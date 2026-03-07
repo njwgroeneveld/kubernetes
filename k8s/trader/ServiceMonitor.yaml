@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: trader-monitor
+  namespace: monitoring # Zet dit in de monitoring namespace
+  labels:
+    release: monitoring # Dit MOET matchen met de naam van je Helm chart (zie 'helm list')
+spec:
+  selector:
+    matchLabels:
+      app: trader # Dit matcht met het label in de Service hierboven
+  namespaceSelector:
+    matchNames:
+      - default # De namespace waar je Trader-pod en Service staan
+  endpoints:
+  - port: prom-metrics # De naam van de poort uit je Service spec
+    interval: 15s

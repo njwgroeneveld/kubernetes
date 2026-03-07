@@ -2,9 +2,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: trader
+  labels:
+    app: trader # Dit label is cruciaal voor de ServiceMonitor
 spec:
   selector:
     app: trader
   ports:
-    - port: 8080
+    - name: trading-api
+      port: 8080
       targetPort: 8080
+    - name: prom-metrics # Voeg deze poort toe voor Prometheus
+      port: 9090
+      targetPort: 9090

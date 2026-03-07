@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: trader
+  labels:
+    app: trader
 spec:
   replicas: 1
   selector:
@@ -11,13 +13,26 @@ spec:
     metadata:
       labels:
         app: trader
+      annotations:
+        # Instructie voor de kube-prometheus-stack om deze pod te pollen
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: trader
           image: ghcr.io/njwgroeneveld/kubernetes/app1:latest
           imagePullPolicy: Always
+          # Definieer beide poorten voor duidelijkheid en netwerkbeheer
+          ports:
+            - containerPort: 8080
+              name: trading-api  # De poort voor exchange.py -> trader.py
+            - containerPort: 9090
+              name: prom-metrics # De poort voor Prometheus scraping
           resources:
             requests:
               cpu: "50m"
+              memory: "100Mi"
             limits:
-              cpu: "50m"
+              cpu: "50m"      # Veroorzaakt throttling bij drukte (goed om te testen!)
+              memory: "200Mi" # Harde grens; voorkomt dat je node vastloopt
