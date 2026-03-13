@@ -10,7 +10,7 @@ app = Flask(__name__)
 LATENCY_METRIC = Histogram(
     'trader_receive_latency_seconds',
     'Tijd tussen verzenden Exchange en ontvangen Trader',
-    buckets=[0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500]
+    buckets=[0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 1.0, 2.5]
 )
 
 # Counter voor het aantal 500 errors (voor je Success Rate query)
