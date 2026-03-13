@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from prometheus_client import start_http_server, Histogram, Counter, Gauge
 import time
 import random
+import gc
 
 app = Flask(__name__)
 
@@ -12,8 +13,9 @@ LATENCY_METRIC = Histogram(
     buckets=[0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500]
 )
 
-# Nieuwe metrics voor SRE simulatie
+# Counter voor het aantal 500 errors (voor je Success Rate query)
 ERROR_COUNTER = Counter('trader_errors_total', 'Totaal aantal gefaalde trades')
+# Gauge om de huidige 'fout-kans' te zien in Grafana
 ERROR_CHANCE_GAUGE = Gauge('trader_simulated_error_chance', 'Huidige ingestelde foutkans')
 
 # --- GLOBALE STATE ---
@@ -22,8 +24,6 @@ error_config = {
     "probability": 0.0,
     "end_time": 0
 }
-
-# --- ROUTES ---
 
 @app.route('/trade', methods=['POST'])
 def trade():
@@ -47,14 +47,16 @@ def trade():
     
     return jsonify({"error": "Geen timestamp gevonden"}), 400
 
-@app.route('/simulate/error', methods=['POST'])
+@app.route('/simulate/error', methods=['GET'])
 def set_error_simulation():
     """
-    Input JSON: {"chance": 0.1, "minutes": 10}
+    Gebruik: /simulate/error?chance=0.1&minutes=10
     """
-    data = request.json
-    chance = data.get('chance', 0.1)
-    duration_min = data.get('minutes', 10)
+    try:
+        chance = float(request.args.get('chance', 0.1))
+        duration_min = int(request.args.get('minutes', 10))
+    except ValueError:
+        return jsonify({"error": "Ongeldige input. Gebruik ?chance=0.1&minutes=10"}), 400
     
     error_config["probability"] = chance
     error_config["end_time"] = time.time() + (duration_min * 60)
@@ -63,7 +65,7 @@ def set_error_simulation():
     
     return jsonify({
         "status": "Chaos initiated",
-        "chance": f"{chance*100}%",
+        "chance_percentage": chance * 100,
         "duration_minutes": duration_min,
         "active_until": time.strftime('%H:%M:%S', time.localtime(error_config["end_time"]))
     })
@@ -73,22 +75,18 @@ def stress_memory():
     try:
         megabytes = int(request.args.get('mb', 10))
     except ValueError:
-        return jsonify({"error": "Ongeldige waarde voor mb"}), 400
+        return jsonify({"error": "Ongeldige mb waarde"}), 400
 
     dummy_data = 'x' * (megabytes * 1024 * 1024)
     memory_stresser.append(dummy_data)
     total_mb = sum(len(i) for i in memory_stresser) / (1024 * 1024)
     
-    return jsonify({
-        "status": "Memory increased",
-        "total_estimated_mb": round(total_mb, 2)
-    })
+    return jsonify({"status": "Memory increased", "total_estimated_mb": round(total_mb, 2)})
 
 @app.route('/stress/memory/clear', methods=['GET'])
 def clear_memory():
     global memory_stresser
     memory_stresser = []
-    import gc
     gc.collect()
     return jsonify({"status": "Memory cleared"})
 
@@ -97,12 +95,9 @@ def stress_test():
     try:
         duration = int(request.args.get('seconds', 5))
     except ValueError:
-        return jsonify({"error": "Ongeldige waarde voor seconds"}), 400
+        return jsonify({"error": "Ongeldige seconds waarde"}), 400
 
-    if duration > 60:
-        return jsonify({"error": "Duur is te lang, max 60 seconden"}), 400
-
-    end_time = time.time() + duration
+    end_time = time.time() + min(duration, 60) # Max 60 sec
     while time.time() < end_time:
         _ = 100 * 100
         
@@ -110,5 +105,5 @@ def stress_test():
 
 if __name__ == '__main__':
     start_http_server(9090)
-    # Belangrijk: threaded=True om te zorgen dat de ene route de andere niet blokkeert!
+    # Threaded=True is belangrijk zodat één zware request (CPU stress) de rest niet blokkeert
     app.run(host='0.0.0.0', port=8080, threaded=True)
