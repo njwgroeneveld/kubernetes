@@ -3,6 +3,10 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 
+# Installeer systeem-tools voor chaos engineering (SRE toolkit)
+RUN apt-get update && apt-get install -y \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
 
 # Zet de werkmap in de container
 WORKDIR /app
