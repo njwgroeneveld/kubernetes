@@ -26,7 +26,7 @@ if __name__ == '__main__':
                 response = requests.post(TRADER_URL, json=payload, timeout=0.5)
                 
                 if response.status_code == 200:
-                    pass # Alles ok
+                    print(f"Trade succesvol verzonden naar {TRADER_URL}", flush=True)
                 else:
                     print(f"Trader Error: {response.status_code}")
 
