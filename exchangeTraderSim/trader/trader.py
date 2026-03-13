@@ -12,6 +12,31 @@ LATENCY_METRIC = Histogram(
     buckets=[0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500]
 )
 
+@app.route('/stress', methods=['GET'])
+def stress_test():
+    # Haal de 'seconds' parameter op uit de URL, standaard is 5 seconden
+    # Voorbeeld: /stress?seconds=10
+    try:
+        duration = int(request.args.get('seconds', 5))
+    except ValueError:
+        return jsonify({"error": "Ongeldige waarde voor seconds"}), 400
+
+    # Limiet instellen om te voorkomen dat je de pod per ongeluk uren vastzet
+    if duration > 60:
+        return jsonify({"error": "Duur is te lang, max 60 seconden"}), 400
+
+    end_time = time.time() + duration
+    count = 0
+    while time.time() < end_time:
+        _ = 100 * 100
+        count += 1 
+        
+    return jsonify({
+        "status": "CPU stress completed", 
+        "duration_seconds": duration,
+        "iterations": count
+    })
+
 @app.route('/trade', methods=['POST'])
 def trade():
     received_at = time.time()
