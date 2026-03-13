@@ -12,6 +12,36 @@ LATENCY_METRIC = Histogram(
     buckets=[0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500]
 )
 
+memory_stresser = []
+
+@app.route('/stress/memory', methods=['GET'])
+def stress_memory():
+    # Haal megabytes op uit de URL, standaard 10MB
+    try:
+        megabytes = int(request.args.get('mb', 10))
+    except ValueError:
+        return jsonify({"error": "Ongeldige waarde voor mb"}), 400
+
+    # 1 MB aan data genereren (ongeveer)
+    # We maken een lange string van 1.000.000 karakters
+    dummy_data = 'x' * (megabytes * 1024 * 1024)
+    memory_stresser.append(dummy_data)
+    
+    # We berekenen hoe groot de lijst nu ongeveer is
+    total_mb = sum(len(i) for i in memory_stresser) / (1024 * 1024)
+    
+    return jsonify({
+        "status": "Memory increased",
+        "added_mb": megabytes,
+        "total_estimated_mb": round(total_mb, 2)
+    })
+
+@app.route('/stress/memory/clear', methods=['GET'])
+def clear_memory():
+    global memory_stresser
+    memory_stresser = []
+    return jsonify({"status": "Memory cleared"})
+
 @app.route('/stress', methods=['GET'])
 def stress_test():
     # Haal de 'seconds' parameter op uit de URL, standaard is 5 seconden
