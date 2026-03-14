@@ -11,13 +11,42 @@ spec:
     metadata:
       labels:
         app: exchange
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
     spec:
       containers:
-        - name: exchange
-          image: ghcr.io/njwgroeneveld/kubernetes/exchange:latest
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: "30m"
-            limits:
-              cpu: "30m"
+      - name: exchange
+        image: ghcr.io/njwgroeneveld/kubernetes/exchange:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8001 # Metrics
+        - containerPort: 8080 # TCP Orders
+        - containerPort: 9999 # UDP Market Data (niet strikt nodig hier, maar netjes)
+          protocol: UDP
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m" # Iets verhoogd voor als je CPU-stress op de Exchange test
+            memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: exchange-service # Naam ingekort voor makkelijker gebruik in de Trader
+  labels:
+    app: exchange
+    release: prometheus
+spec:
+  ports:
+    - name: metrics
+      port: 8001
+      targetPort: 8001
+    - name: orders
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: exchange
