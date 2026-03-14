@@ -10,7 +10,7 @@ from flask import Flask, request, jsonify
 from prometheus_client import start_http_server, Counter, Gauge, Histogram
 
 # --- CONFIGURATIE ---
-TRADER_ID = os.getenv("HOSTNAME", "local-trader")
+TRADER_ID = os.getenv("HOSTNAME", "local-trader") 
 EXCHANGE_TCP_URL = os.getenv("EXCHANGE_URL", "http://exchange-service:8080/order")
 UDP_PORT = int(os.getenv("UDP_PORT", 9999))
 
