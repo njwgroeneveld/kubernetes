@@ -15,6 +15,12 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8001"
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
       containers:
       - name: exchange
         image: ghcr.io/njwgroeneveld/kubernetes/exchange:latest
@@ -50,3 +56,20 @@ spec:
       protocol: TCP
   selector:
     app: exchange
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: exchange-monitor
+  namespace: monitoring # Zorg dat deze in dezelfde namespace staat als je trader-monitor
+  labels:
+    release: monitoring # DIT LABEL IS CRUCIAAL. Check even met 'k get prometheus -n monitoring -o yaml | grep serviceMonitorSelector' of dit klopt
+spec:
+  selector:
+    matchLabels:
+      app: exchange # Dit moet matchen met het label in je exchange-service
+  namespaceSelector:
+    any: true
+  endpoints:
+  - port: metrics # Dit verwijst naar de naam 'metrics' (poort 8001) in je exchange-service
+    interval: 15s
