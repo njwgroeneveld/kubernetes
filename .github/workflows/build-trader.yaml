@@ -34,4 +34,4 @@ jobs:
           context: ./exchangeTraderSim/trader        # ← map van de app
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}/app1:latest
+          tags: ghcr.io/${{ github.repository }}/trader:latest
