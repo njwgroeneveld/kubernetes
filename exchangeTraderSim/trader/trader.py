@@ -1,87 +1,57 @@
-from flask import Flask, request, jsonify
-from prometheus_client import start_http_server, Histogram, Counter, Gauge
+import threading
 import time
+import socket
+import json
+import requests
+import os
 import random
 import gc
+from flask import Flask, request, jsonify
+from prometheus_client import start_http_server, Counter, Gauge, Histogram
+
+# --- CONFIGURATIE ---
+TRADER_ID = os.getenv("HOSTNAME", "local-trader")
+EXCHANGE_TCP_URL = os.getenv("EXCHANGE_URL", "http://exchange-service:8080/order")
+UDP_PORT = int(os.getenv("UDP_PORT", 9999))
+
+# --- PROMETHEUS METRICS ---
+UDP_PRICES_RECEIVED = Counter('trader_udp_prices_total', 'Totaal ontvangen UDP koersen', ['trader_id'])
+TCP_ORDERS_SENT = Counter('trader_tcp_orders_total', 'Totaal verzonden orders', ['trader_id'])
+TCP_ORDER_FAILURES = Counter('trader_tcp_order_failures_total', 'Aantal gefaalde TCP verzoeken', ['trader_id'])
+MARKET_DATA_STALE = Gauge('trader_market_data_stale', 'Status van koersinformatie (0=OK, 1=STALE)', ['trader_id'])
+
+# Jouw Chaos Metrics
+LATENCY_METRIC = Histogram('trader_receive_latency_seconds', 'Netwerk latency koers ontvangst', buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5])
+ERROR_CHANCE_GAUGE = Gauge('trader_simulated_error_chance', 'Huidige ingestelde foutkans', ['trader_id'])
+
+# --- GLOBALE STATE ---
+last_price_time = 0
+current_market_price = 0
+memory_stresser = []
+error_config = {"probability": 0.0, "end_time": 0}
 
 app = Flask(__name__)
 
-# --- METRICS ---
-LATENCY_METRIC = Histogram(
-    'trader_receive_latency_seconds',
-    'Tijd tussen verzenden Exchange en ontvangen Trader',
-    buckets=[0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 1.0, 2.5]
-)
-
-# Counter voor het aantal 500 errors (voor je Success Rate query)
-ERROR_COUNTER = Counter('trader_errors_total', 'Totaal aantal gefaalde trades')
-# Gauge om de huidige 'fout-kans' te zien in Grafana
-ERROR_CHANCE_GAUGE = Gauge('trader_simulated_error_chance', 'Huidige ingestelde foutkans')
-
-# --- GLOBALE STATE ---
-memory_stresser = []
-error_config = {
-    "probability": 0.0,
-    "end_time": 0
-}
-
-@app.route('/trade', methods=['POST'])
-def trade():
-    # 1. Check op gesimuleerde fouten
-    current_time = time.time()
-    if current_time < error_config["end_time"]:
-        if random.random() < error_config["probability"]:
-            ERROR_COUNTER.inc()
-            return jsonify({"error": "Internal Server Error (Simulated Chaos)"}), 500
-
-    # 2. Normale trade logica
-    received_at = time.time()
-    data = request.json
-    sent_at = data.get('sent_at')
-    
-    if sent_at:
-        latency_seconds = received_at - sent_at
-        LATENCY_METRIC.observe(latency_seconds)
-        latency_ms = latency_seconds * 1000
-        return jsonify({"status": "accepted", "latency_ms": latency_ms}), 200
-    
-    return jsonify({"error": "Geen timestamp gevonden"}), 400
+# --- 1. CHAOS API ENDPOINTS (Jouw code geïntegreerd) ---
 
 @app.route('/simulate/error', methods=['GET'])
 def set_error_simulation():
-    """
-    Gebruik: /simulate/error?chance=0.1&minutes=10
-    """
     try:
         chance = float(request.args.get('chance', 0.1))
         duration_min = int(request.args.get('minutes', 10))
-    except ValueError:
-        return jsonify({"error": "Ongeldige input. Gebruik ?chance=0.1&minutes=10"}), 400
-    
-    error_config["probability"] = chance
-    error_config["end_time"] = time.time() + (duration_min * 60)
-    
-    ERROR_CHANCE_GAUGE.set(chance)
-    
-    return jsonify({
-        "status": "Chaos initiated",
-        "chance_percentage": chance * 100,
-        "duration_minutes": duration_min,
-        "active_until": time.strftime('%H:%M:%S', time.localtime(error_config["end_time"]))
-    })
+        error_config["probability"] = chance
+        error_config["end_time"] = time.time() + (duration_min * 60)
+        ERROR_CHANCE_GAUGE.labels(trader_id=TRADER_ID).set(chance)
+        return jsonify({"status": "Chaos initiated", "trader": TRADER_ID, "chance": chance})
+    except:
+        return jsonify({"error": "Invalid input"}), 400
 
 @app.route('/stress/memory', methods=['GET'])
 def stress_memory():
-    try:
-        megabytes = int(request.args.get('mb', 10))
-    except ValueError:
-        return jsonify({"error": "Ongeldige mb waarde"}), 400
-
-    dummy_data = 'x' * (megabytes * 1024 * 1024)
+    mb = int(request.args.get('mb', 10))
+    dummy_data = 'x' * (mb * 1024 * 1024)
     memory_stresser.append(dummy_data)
-    total_mb = sum(len(i) for i in memory_stresser) / (1024 * 1024)
-    
-    return jsonify({"status": "Memory increased", "total_estimated_mb": round(total_mb, 2)})
+    return jsonify({"status": "Memory increased", "trader": TRADER_ID})
 
 @app.route('/stress/memory/clear', methods=['GET'])
 def clear_memory():
@@ -90,20 +60,68 @@ def clear_memory():
     gc.collect()
     return jsonify({"status": "Memory cleared"})
 
-@app.route('/stress', methods=['GET'])
-def stress_test():
-    try:
-        duration = int(request.args.get('seconds', 5))
-    except ValueError:
-        return jsonify({"error": "Ongeldige seconds waarde"}), 400
-
-    end_time = time.time() + min(duration, 60) # Max 60 sec
+@app.route('/stress/cpu', methods=['GET'])
+def stress_cpu():
+    duration = int(request.args.get('seconds', 5))
+    end_time = time.time() + min(duration, 60)
     while time.time() < end_time:
-        _ = 100 * 100
-        
+        _ = 100 * 100 # CPU intensief
     return jsonify({"status": "CPU stress completed"})
 
+# --- 2. UDP LISTENER THREAD ---
+def udp_listener():
+    global last_price_time, current_market_price
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(('0.0.0.0', UDP_PORT))
+    while True:
+        try:
+            data, addr = sock.recvfrom(1024)
+            msg = json.loads(data.decode())
+            
+            # Latency meten (tussen verzending Exchange en ontvangst Trader)
+            latency = time.time() - msg.get('timestamp', time.time())
+            LATENCY_METRIC.observe(latency)
+            
+            current_market_price = msg['price']
+            last_price_time = time.time()
+            UDP_PRICES_RECEIVED.labels(trader_id=TRADER_ID).inc()
+            MARKET_DATA_STALE.labels(trader_id=TRADER_ID).set(0)
+        except:
+            pass
+
+# --- 3. TRADING LOGIC THREAD ---
+def trading_loop():
+    while True:
+        # Check Chaos: Moeten we een fout simuleren?
+        if time.time() < error_config["end_time"]:
+            if random.random() < error_config["probability"]:
+                TCP_ORDER_FAILURES.labels(trader_id=TRADER_ID).inc()
+                print(f"[{TRADER_ID}] SIMULATED ERROR: Order niet verzonden.")
+                time.sleep(1)
+                continue
+
+        # Check Stale Data
+        if time.time() - last_price_time > 1.5:
+            MARKET_DATA_STALE.labels(trader_id=TRADER_ID).set(1)
+            time.sleep(1)
+            continue
+
+        # Normale Order (TCP POST)
+        try:
+            TCP_ORDERS_SENT.labels(trader_id=TRADER_ID).inc()
+            requests.post(EXCHANGE_TCP_URL, json={"trader_id": TRADER_ID, "price": current_market_price}, timeout=0.5)
+        except:
+            TCP_ORDER_FAILURES.labels(trader_id=TRADER_ID).inc()
+        
+        time.sleep(1)
+
 if __name__ == '__main__':
+    # Prometheus metrics op 9090
     start_http_server(9090)
-    # Threaded=True is belangrijk zodat één zware request (CPU stress) de rest niet blokkeert
+    
+    # Threads starten
+    threading.Thread(target=udp_listener, daemon=True).start()
+    threading.Thread(target=trading_loop, daemon=True).start()
+    
+    # Chaos API op 8080
     app.run(host='0.0.0.0', port=8080, threaded=True)
