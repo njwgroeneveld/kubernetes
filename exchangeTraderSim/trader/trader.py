@@ -6,6 +6,7 @@ import requests
 import os
 import random
 import gc
+import sys # Toegevoegd voor directere logging
 from flask import Flask, request, jsonify
 from prometheus_client import start_http_server, Counter, Gauge, Histogram
 
@@ -20,7 +21,7 @@ TCP_ORDERS_SENT = Counter('trader_tcp_orders_total', 'Totaal verzonden orders', 
 TCP_ORDER_FAILURES = Counter('trader_tcp_order_failures_total', 'Aantal gefaalde TCP verzoeken', ['trader_id'])
 MARKET_DATA_STALE = Gauge('trader_market_data_stale', 'Status van koersinformatie (0=OK, 1=STALE)', ['trader_id'])
 
-# Jouw Chaos Metrics
+# Chaos Metrics
 LATENCY_METRIC = Histogram('trader_receive_latency_seconds', 'Netwerk latency koers ontvangst', buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5])
 ERROR_CHANCE_GAUGE = Gauge('trader_simulated_error_chance', 'Huidige ingestelde foutkans', ['trader_id'])
 
@@ -32,7 +33,7 @@ error_config = {"probability": 0.0, "end_time": 0}
 
 app = Flask(__name__)
 
-# --- 1. CHAOS API ENDPOINTS (Jouw code geïntegreerd) ---
+# --- 1. CHAOS API ENDPOINTS ---
 
 @app.route('/simulate/error', methods=['GET'])
 def set_error_simulation():
@@ -42,6 +43,7 @@ def set_error_simulation():
         error_config["probability"] = chance
         error_config["end_time"] = time.time() + (duration_min * 60)
         ERROR_CHANCE_GAUGE.labels(trader_id=TRADER_ID).set(chance)
+        print(f"\n!!! CHAOS MODE GEACTIVEERD: Kans op error = {chance} voor {duration_min} min !!!\n", flush=True)
         return jsonify({"status": "Chaos initiated", "trader": TRADER_ID, "chance": chance})
     except:
         return jsonify({"error": "Invalid input"}), 400
@@ -49,6 +51,7 @@ def set_error_simulation():
 @app.route('/stress/memory', methods=['GET'])
 def stress_memory():
     mb = int(request.args.get('mb', 10))
+    print(f"--- STRESS TEST: Geheugen verhogen met {mb}MB ---", flush=True)
     dummy_data = 'x' * (mb * 1024 * 1024)
     memory_stresser.append(dummy_data)
     return jsonify({"status": "Memory increased", "trader": TRADER_ID})
@@ -58,14 +61,16 @@ def clear_memory():
     global memory_stresser
     memory_stresser = []
     gc.collect()
+    print("--- STRESS TEST: Geheugen vrijgegeven ---", flush=True)
     return jsonify({"status": "Memory cleared"})
 
 @app.route('/stress/cpu', methods=['GET'])
 def stress_cpu():
     duration = int(request.args.get('seconds', 5))
+    print(f"--- STRESS TEST: CPU belasten voor {duration}s ---", flush=True)
     end_time = time.time() + min(duration, 60)
     while time.time() < end_time:
-        _ = 100 * 100 # CPU intensief
+        _ = 100 * 100 
     return jsonify({"status": "CPU stress completed"})
 
 # --- 2. UDP LISTENER THREAD ---
@@ -73,55 +78,59 @@ def udp_listener():
     global last_price_time, current_market_price
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('0.0.0.0', UDP_PORT))
+    print(f"[*] Luisteren naar UDP koersen op poort {UDP_PORT}...", flush=True)
     while True:
         try:
             data, addr = sock.recvfrom(1024)
             msg = json.loads(data.decode())
-            
-            # Latency meten (tussen verzending Exchange en ontvangst Trader)
             latency = time.time() - msg.get('timestamp', time.time())
             LATENCY_METRIC.observe(latency)
-            
             current_market_price = msg['price']
             last_price_time = time.time()
             UDP_PRICES_RECEIVED.labels(trader_id=TRADER_ID).inc()
             MARKET_DATA_STALE.labels(trader_id=TRADER_ID).set(0)
-        except:
-            pass
+        except Exception as e:
+            print(f"[UDP ERROR] {e}", flush=True)
 
 # --- 3. TRADING LOGIC THREAD ---
 def trading_loop():
+    print(f"[*] Trading loop gestart voor {TRADER_ID}", flush=True)
     while True:
-        # Check Chaos: Moeten we een fout simuleren?
+        # Check Chaos
         if time.time() < error_config["end_time"]:
             if random.random() < error_config["probability"]:
                 TCP_ORDER_FAILURES.labels(trader_id=TRADER_ID).inc()
-                print(f"[{TRADER_ID}] SIMULATED ERROR: Order niet verzonden.")
+                # Gebruik \r om de logs niet te vervuilen, of gewoon print
+                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | CHAOS TRIGGERED: Order geblokkeerd!", flush=True)
                 time.sleep(1)
                 continue
 
         # Check Stale Data
         if time.time() - last_price_time > 1.5:
             MARKET_DATA_STALE.labels(trader_id=TRADER_ID).set(1)
+            print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | WAITING: Geen verse koersdata...", flush=True)
             time.sleep(1)
             continue
 
         # Normale Order (TCP POST)
         try:
             TCP_ORDERS_SENT.labels(trader_id=TRADER_ID).inc()
-            requests.post(EXCHANGE_TCP_URL, json={"trader_id": TRADER_ID, "price": current_market_price}, timeout=0.5)
-        except:
+            resp = requests.post(EXCHANGE_TCP_URL, json={"trader_id": TRADER_ID, "price": current_market_price}, timeout=0.5)
+            if resp.status_code == 201:
+                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | SUCCESS: Order verzonden @ {current_market_price}", flush=True)
+            else:
+                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | FAILED: Exchange gaf status {resp.status_code}", flush=True)
+        except Exception as e:
             TCP_ORDER_FAILURES.labels(trader_id=TRADER_ID).inc()
+            print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | ERROR: Kon exchange niet bereiken", flush=True)
         
         time.sleep(1)
 
 if __name__ == '__main__':
-    # Prometheus metrics op 9090
     start_http_server(9090)
     
-    # Threads starten
     threading.Thread(target=udp_listener, daemon=True).start()
     threading.Thread(target=trading_loop, daemon=True).start()
     
-    # Chaos API op 8080
+    # Gebruik threaded=True om Flask de rest niet te laten blokkeren
     app.run(host='0.0.0.0', port=8080, threaded=True)
