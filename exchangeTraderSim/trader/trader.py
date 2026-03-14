@@ -96,33 +96,31 @@ def udp_listener():
 def trading_loop():
     print(f"[*] Trading loop gestart voor {TRADER_ID}", flush=True)
     while True:
-        # Check Chaos
+        # 1. Hebben we wel verse data? (Eerst checken!)
+        if time.time() - last_price_time > 2.0: # Iets ruimer gezet
+            MARKET_DATA_STALE.labels(trader_id=TRADER_ID).set(1)
+            time.sleep(0.5)
+            continue
+        
+        MARKET_DATA_STALE.labels(trader_id=TRADER_ID).set(0)
+
+        # 2. CHAOS CHECK (Nu pas kijken of we de order blokkeren)
         if time.time() < error_config["end_time"]:
             if random.random() < error_config["probability"]:
                 TCP_ORDER_FAILURES.labels(trader_id=TRADER_ID).inc()
-                # Gebruik \r om de logs niet te vervuilen, of gewoon print
-                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | CHAOS TRIGGERED: Order geblokkeerd!", flush=True)
+                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | CHAOS: Order geblokkeerd (Kans: {error_config['probability']})", flush=True)
                 time.sleep(1)
                 continue
 
-        # Check Stale Data
-        if time.time() - last_price_time > 1.5:
-            MARKET_DATA_STALE.labels(trader_id=TRADER_ID).set(1)
-            print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | WAITING: Geen verse koersdata...", flush=True)
-            time.sleep(1)
-            continue
-
-        # Normale Order (TCP POST)
+        # 3. VERSTUREN
         try:
             TCP_ORDERS_SENT.labels(trader_id=TRADER_ID).inc()
             resp = requests.post(EXCHANGE_TCP_URL, json={"trader_id": TRADER_ID, "price": current_market_price}, timeout=0.5)
             if resp.status_code == 201:
-                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | SUCCESS: Order verzonden @ {current_market_price}", flush=True)
-            else:
-                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | FAILED: Exchange gaf status {resp.status_code}", flush=True)
+                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | SUCCESS: Order @ {current_market_price}", flush=True)
         except Exception as e:
             TCP_ORDER_FAILURES.labels(trader_id=TRADER_ID).inc()
-            print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | ERROR: Kon exchange niet bereiken", flush=True)
+            print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | NETWERK ERROR: Exchange onbereikbaar", flush=True)
         
         time.sleep(1)
 
