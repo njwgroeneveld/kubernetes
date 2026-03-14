@@ -2,10 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: trader
-  labels:
-    app: trader
 spec:
-  replicas: 1
+  replicas: 3 # Nu krijg je 3 verschillende traders in je dashboard
   selector:
     matchLabels:
       app: trader
@@ -14,25 +12,31 @@ spec:
       labels:
         app: trader
       annotations:
-        # Instructie voor de kube-prometheus-stack om deze pod te pollen
         prometheus.io/scrape: "true"
         prometheus.io/port: "9090"
         prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: trader
-          image: ghcr.io/njwgroeneveld/kubernetes/app1:latest
+          image: ghcr.io/njwgroeneveld/kubernetes/trader:latest # Check of dit je nieuwe image naam is!
           imagePullPolicy: Always
-          # Definieer beide poorten voor duidelijkheid en netwerkbeheer
+          env:
+            - name: EXCHANGE_URL
+              value: "http://exchange-service:8080/order"
+            - name: UDP_PORT
+              value: "9999"
           ports:
             - containerPort: 8080
-              name: trading-api  # De poort voor exchange.py -> trader.py
+              name: chaos-api
             - containerPort: 9090
-              name: prom-metrics # De poort voor Prometheus scraping
+              name: prom-metrics
+            - containerPort: 9999
+              name: udp-input
+              protocol: UDP
           resources:
             requests:
               cpu: "50m"
-              memory: "100Mi"
+              memory: "64Mi"
             limits:
-              cpu: "50m"      # Veroorzaakt throttling bij drukte (goed om te testen!)
-              memory: "200Mi" # Harde grens; voorkomt dat je node vastloopt
+              cpu: "200m"  # Ruimer voor de CPU stress-test
+              memory: "300Mi" # Ruimer voor de Memory stress-test (OOMKill simulatie)
