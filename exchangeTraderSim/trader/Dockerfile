@@ -6,6 +6,7 @@ ENV PYTHONUNBUFFERED=1
 # Installeer systeem-tools voor chaos engineering (SRE toolkit)
 RUN apt-get update && apt-get install -y \
     procps \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Zet de werkmap in de container
