@@ -22,19 +22,6 @@
   "links": [],
   "panels": [
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "id": 9,
-      "panels": [],
-      "title": "🚀 Trading Pipeline Health",
-      "type": "row"
-    },
-    {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -50,10 +37,12 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
+            "axisSoftMax": 1,
+            "axisSoftMin": 0,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 10,
+            "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -62,7 +51,7 @@
             },
             "insertNulls": false,
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -97,11 +86,11 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 10,
+        "w": 12,
         "x": 0,
-        "y": 1
+        "y": 0
       },
-      "id": 1,
+      "id": 19,
       "options": {
         "legend": {
           "calcs": [],
@@ -118,17 +107,14 @@
       "pluginVersion": "12.3.1",
       "targets": [
         {
-          "expr": "sum(rate(exchange_udp_packets_sent_total[1m]))",
-          "legendFormat": "Exchange (Sent)",
+          "editorMode": "code",
+          "expr": "trader_market_data_stale",
+          "legendFormat": "{{pod}}",
+          "range": true,
           "refId": "A"
-        },
-        {
-          "expr": "sum by (pod) (rate(trader_udp_prices_total[1m]))",
-          "legendFormat": "{{pod}} (Received)",
-          "refId": "B"
         }
       ],
-      "title": "UDP Network Flow: Sent vs Received",
+      "title": "market data stale",
       "type": "timeseries"
     },
     {
@@ -138,6 +124,9 @@
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [],
           "max": 100,
           "min": 0,
@@ -164,9 +153,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
-        "x": 10,
-        "y": 1
+        "w": 4,
+        "x": 12,
+        "y": 0
       },
       "id": 15,
       "options": {
@@ -188,7 +177,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "(1 - (sum(rate(trader_tcp_order_failures_total[1m])) / sum(rate(trader_tcp_orders_total[1m])))) * 100",
+          "expr": "(1 - (\r\n  sum(rate(trader_tcp_order_failures_total[1m])) \r\n  / sum(rate(trader_tcp_orders_total[1m]))\r\n)) * 100\r\nor vector(100)",
           "range": true,
           "refId": "A"
         }
@@ -261,7 +250,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 1
+        "y": 0
       },
       "id": 16,
       "options": {
@@ -281,7 +270,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (trader_id) (rate(trader_tcp_order_failures_total[1m]))",
+          "expr": "sum by (trader_id) (rate(trader_tcp_order_failures_total[1m]))\r\nor\r\nsum by (trader_id) (rate(trader_tcp_orders_total[1m]) * 0)",
           "legendFormat": "{{error_code}} ({{trader_id}})",
           "range": true,
           "refId": "A"
@@ -289,6 +278,207 @@
       ],
       "title": "Simulated Errors / Sec",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 0,
+        "y": 8
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(exchange_udp_packets_sent_total[1m]))",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "UDP Network Flow: Sent",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 4,
+        "y": 8
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (pod) (rate(trader_udp_prices_total[1m]))",
+          "legendFormat": "{{pod}} (Received)",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "UDP Network Flow: Received",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 9,
+      "panels": [],
+      "title": "🚀 Trading Pipeline Health",
+      "type": "row"
     },
     {
       "datasource": {
@@ -318,7 +508,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 17
       },
       "id": 3,
       "options": {
@@ -362,7 +552,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 23
       },
       "id": 10,
       "panels": [],
@@ -393,7 +583,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 24
       },
       "id": 4,
       "options": {
@@ -505,7 +695,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 24
       },
       "id": 5,
       "options": {
@@ -545,7 +735,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 32
       },
       "id": 11,
       "panels": [],
@@ -617,7 +807,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 25
+        "y": 33
       },
       "id": 6,
       "options": {
@@ -710,7 +900,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 25
+        "y": 33
       },
       "id": 7,
       "options": {
@@ -802,7 +992,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 25
+        "y": 33
       },
       "id": 8,
       "options": {
@@ -891,10 +1081,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 9,
+        "w": 8,
         "x": 0,
-        "y": 33
+        "y": 41
       },
       "id": 17,
       "options": {
@@ -969,5 +1159,5 @@
   "timezone": "",
   "title": "Pi5 Cluster: Master Dashboard (with Chaos)",
   "uid": "trading-master-v2",
-  "version": 8
+  "version": 19
 }
