@@ -28,6 +28,8 @@ LATENCY_METRIC = Histogram('trader_receive_latency_seconds', 'Netwerk latency ko
 ERROR_CHANCE_GAUGE = Gauge('trader_simulated_error_chance', 'Huidige ingestelde foutkans', ['trader_id'])
 UDP_LOSS_GAUGE = Gauge('trader_simulated_udp_loss', 'Huidige ingestelde UDP packet loss kans', ['trader_id'])
 TCP_LOSS_GAUGE = Gauge('trader_simulated_tcp_loss', 'Huidige ingestelde TCP packet loss kans', ['trader_id'])
+PRICE_AGE = Gauge('trader_price_age_ms', 'Leeftijd van laatste prijs in ms', ['trader_id'])
+
 
 # --- GLOBALE STATE ---
 last_price_time = 0
@@ -199,6 +201,9 @@ def udp_listener():
 def trading_loop():
     print(f"[*] Trading loop gestart voor {TRADER_ID}", flush=True)
     while True:
+
+        age_ms = (time.time() - last_price_time) * 1000
+        PRICE_AGE.labels(trader_id=TRADER_ID).set(age_ms)
         # 1. Hebben we wel verse data?
         if time.time() - last_price_time > 2.0:
             MARKET_DATA_STALE.labels(trader_id=TRADER_ID).set(1)
