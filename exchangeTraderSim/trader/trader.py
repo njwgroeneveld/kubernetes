@@ -29,6 +29,8 @@ ERROR_CHANCE_GAUGE = Gauge('trader_simulated_error_chance', 'Huidige ingestelde 
 UDP_LOSS_GAUGE = Gauge('trader_simulated_udp_loss', 'Huidige ingestelde UDP packet loss kans', ['trader_id'])
 TCP_LOSS_GAUGE = Gauge('trader_simulated_tcp_loss', 'Huidige ingestelde TCP packet loss kans', ['trader_id'])
 PRICE_AGE = Gauge('trader_price_age_ms', 'Leeftijd van laatste prijs in ms', ['trader_id'])
+ORDER_LATENCY = Histogram('trader_order_latency_seconds', 'Tijd tussen order versturen en bevestiging ontvangen', ['trader_id'], buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0])
+
 
 
 # --- GLOBALE STATE ---
@@ -232,13 +234,18 @@ def trading_loop():
         # 4. VERSTUREN
         try:
             TCP_ORDERS_SENT.labels(trader_id=TRADER_ID).inc()
+            start = time.time()  # ← START meting
             resp = requests.post(EXCHANGE_TCP_URL, json={"trader_id": TRADER_ID, "price": current_market_price}, timeout=0.5)
+            duration = time.time() - start  # ← STOP meting
+            ORDER_LATENCY.labels(trader_id=TRADER_ID).observe(duration)  # ← RECORD
+    
             if resp.status_code == 201:
-                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | SUCCESS: Order @ {current_market_price}", flush=True)
+                print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | SUCCESS: Order @ {current_market_price} ({duration*1000:.1f}ms)", flush=True)
         except Exception as e:
             TCP_ORDER_FAILURES.labels(trader_id=TRADER_ID).inc()
             print(f"[{time.strftime('%H:%M:%S')}] {TRADER_ID} | NETWERK ERROR: Exchange onbereikbaar", flush=True)
 
+            
         time.sleep(1)
 
 if __name__ == '__main__':
